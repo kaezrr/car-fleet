@@ -1,16 +1,16 @@
 export type Vehicle = {
-  vin: string; // Unique
+  id: number; // Unique
   manufacturer: string;
   model: string;
   fleetId: number;
-  operator: string;
-  registrationStatus: "Active" | "Maintenance" | "Decommissioned";
+  owner: string;
+  registration: "ACTIVE" | "MAINTENANCE" | "DECOMMISSIONED";
 };
 
 export type TelemetryData = {
   coordinates: { lat: number; lon: number };
   speed: number; // kilometers per hour
-  engineStatus: "On" | "Off" | "Idle";
+  engineStatus: "ON" | "OFF" | "IDLE";
   fuel: number; // Percentage 0 - 100
   odometer: number; // kilometers
   diagnosticCode: number | null;

@@ -14,7 +14,7 @@ enum RegistrationStatus {
 }
 
 model Fleet {
-    id      Int       @id
+    id      Int       @id @default(autoincrement())
     Vehicle Vehicle[]
     Alerts  Alerts[]
 }
@@ -44,7 +44,7 @@ enum EngineStatus {
 }
 
 model Telemetry {
-    id             Int          @id
+    id             Int          @id @default(autoincrement())
     coordsLon      Int
     coordsLat      Int
     speed          Int
@@ -52,7 +52,7 @@ model Telemetry {
     fuel           Int
     odometer       Int
     diagnosticCode Int?
-    timestamp      DateTime
+    timestamp      DateTime     @default(now())
 }
 
 enum Alert {
@@ -61,7 +61,7 @@ enum Alert {
 }
 
 model Alerts {
-    id        Int     @id
+    id        Int     @id @default(autoincrement())
     type      Alert
     fleet     Fleet   @relation(fields: [fleetId], references: [id])
     fleetId   Int
