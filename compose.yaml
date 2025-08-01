@@ -1,3 +1,5 @@
+version: "3.8"
+
 services:
   postgres:
     image: postgres:latest
@@ -10,6 +12,16 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: car-fleet-app
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://hackathon:1234@postgres:5432/mydb
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:
