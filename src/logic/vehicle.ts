@@ -8,6 +8,35 @@ export async function insert(fleetId: string, vehicle: Vehicle) {
       fleetId,
     },
   });
+
+  let last = new Date();
+  last.setDate(last.getDate() - 2);
+  await db.vehicleStatus.create({
+    data: {
+      lastSpeed: 0,
+      lastFuel: 100,
+      lastOdometer: 0,
+      lastDriven: last,
+      vehicleId: vehicle.id,
+    },
+  });
+
+  const fleet = await db.fleet.findFirst({
+    where: {
+      id: fleetId,
+    },
+  });
+
+  fleet!.totalVehicles++;
+
+  await db.fleet.update({
+    where: {
+      id: fleetId,
+    },
+    data: {
+      totalVehicles: fleet!.totalVehicles,
+    },
+  });
 }
 
 export async function getAll(fleetId: string): Promise<Vehicle[]> {
@@ -35,6 +64,22 @@ export async function deleteById(fleetId: string, carId: number) {
     where: {
       id: carId,
       fleetId,
+    },
+  });
+  const fleet = await db.fleet.findFirst({
+    where: {
+      id: fleetId,
+    },
+  });
+
+  fleet!.totalVehicles--;
+
+  await db.fleet.update({
+    where: {
+      id: fleetId,
+    },
+    data: {
+      totalVehicles: fleet!.totalVehicles,
     },
   });
 }

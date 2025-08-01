@@ -27,7 +27,7 @@ export let getLatestTelemetry = async (req: Request, res: Response) => {
 export let insertTelemetry = async (req: Request, res: Response) => {
   let fleetId = req.params.fleetId;
   let telemetry: Telemetry[] = req.body;
-  await insert(telemetry);
+  await insert(fleetId, telemetry);
 
   res.json({
     status: "success",

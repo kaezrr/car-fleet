@@ -1,6 +1,7 @@
-import { Alert } from "@prisma/client";
 import { getAll, getByType } from "../logic/alerts";
 import { Request, Response } from "express";
+
+type Alert = "speed-violation" | "low-fuel";
 
 export let getAllAlerts = async (req: Request, res: Response) => {
   let fleetId = req.params.fleetId;
@@ -15,7 +16,7 @@ export let getAllAlerts = async (req: Request, res: Response) => {
 
 export let getAlertsByType = async (req: Request, res: Response) => {
   let fleetId = req.params.fleetId;
-  let alertType = Alert[req.params.alert as keyof typeof Alert];
+  let alertType: Alert = req.params.alertId as Alert;
   let alerts = await getByType(fleetId, alertType);
 
   res.json({

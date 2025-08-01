@@ -1,29 +1,13 @@
-import db from "../db";
+import { getAll } from "../logic/analytics";
+import { Request, Response } from "express";
 
-export class Analytics {
-  activeDrivers: number = 0;
-  inactiveDrivers: number = 0;
-  averageFuel: number = 0;
-  totalDistance: number = 0;
-  alertSummar: {
-    lowFuel: number;
-    speedViolation: number;
-  } = { lowFuel: 0, speedViolation: 0 };
-}
+export let getAnalytics = async (req: Request, res: Response) => {
+  let fleetId = req.params.fleetId;
+  let analytics = await getAll(fleetId);
 
-function isWithinLast24Hours(givenDate: Date) {
-  const now = Date.now();
-  const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000; // 24 hours * 60 minutes * 60 seconds * 1000 milliseconds
-  const givenDateTimestamp = givenDate.getTime();
-  return givenDateTimestamp >= twentyFourHoursAgo && givenDateTimestamp <= now;
-}
-
-async function getAnalytics(fleetId: string): Promise<Analytics> {
-  let drivers = await db.vehicleStatus.findMany({
-    where: { vehicle: { fleetId } },
+  res.json({
+    status: "success",
+    message: "Analytics retrieved successfully",
+    data: analytics,
   });
-
-  let analytics = new Analytics();
-
-  return analytics;
-}
+};
