@@ -43,7 +43,16 @@ export async function insert(fleetId: string, telArray: Telemetry[]) {
       t.timestamp = new Date(t.timestamp);
     }
   });
-  telArray.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  const latestByVehicle = new Map<number, Telemetry>();
+  for (const t of telArray) {
+    const prev = latestByVehicle.get(t.vehicleId);
+    if (!prev || t.timestamp.getTime() > prev.timestamp.getTime()) {
+      latestByVehicle.set(t.vehicleId, t);
+    }
+  }
+  const deduped = Array.from(latestByVehicle.values());
+
+  deduped.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
   const fleet = await db.fleet.findUnique({ where: { id: fleetId } });
   if (!fleet) throw new Error("Fleet not found");
@@ -69,7 +78,6 @@ export async function insert(fleetId: string, telArray: Telemetry[]) {
       const old = map[newtel.vehicleId];
       queue.push(newtel.vehicleId);
 
-      // 4a) average fuel & distance
       fleet.averageFuel += (newtel.fuel - old.lastFuel) / fleet.totalVehicles;
       if (!isWithinLast24Hours(old.lastDriven)) {
         fleet.activeVehicles++;
