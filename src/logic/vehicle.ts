@@ -2,40 +2,35 @@ import { Vehicle } from "@prisma/client";
 import db from "../db";
 
 export async function insert(fleetId: string, vehicle: Vehicle) {
-  await db.vehicle.create({
-    data: {
-      ...vehicle,
-      fleetId,
-    },
-  });
+  // we want vehicle + initial status + fleet bump to all succeed or all roll back
+  await db.$transaction(async (tx) => {
+    // 1) create the vehicle
+    await tx.vehicle.create({
+      data: {
+        ...vehicle,
+        fleetId,
+      },
+    });
 
-  let last = new Date();
-  last.setDate(last.getDate() - 2);
-  await db.vehicleStatus.create({
-    data: {
-      lastSpeed: 0,
-      lastFuel: 100,
-      lastOdometer: 0,
-      lastDriven: last,
-      vehicleId: vehicle.id,
-    },
-  });
+    // 2) set its initial VehicleStatus to “inactive” (2 days ago)
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    await tx.vehicleStatus.create({
+      data: {
+        vehicleId: vehicle.id,
+        lastFuel: 0,
+        lastOdometer: 0,
+        lastDriven: twoDaysAgo,
+      },
+    });
 
-  const fleet = await db.fleet.findFirst({
-    where: {
-      id: fleetId,
-    },
-  });
-
-  fleet!.totalVehicles++;
-
-  await db.fleet.update({
-    where: {
-      id: fleetId,
-    },
-    data: {
-      totalVehicles: fleet!.totalVehicles,
-    },
+    // 3) bump fleet.totalVehicles by +1
+    await tx.fleet.update({
+      where: { id: fleetId },
+      data: {
+        totalVehicles: { increment: 1 },
+      },
+    });
   });
 }
 
@@ -60,26 +55,16 @@ export async function getById(
 }
 
 export async function deleteById(fleetId: string, carId: number) {
-  await db.vehicle.delete({
-    where: {
-      id: carId,
-      fleetId,
-    },
-  });
-  const fleet = await db.fleet.findFirst({
-    where: {
-      id: fleetId,
-    },
-  });
+  await db.$transaction(async (tx) => {
+    await tx.vehicle.delete({
+      where: { id: carId },
+    });
 
-  fleet!.totalVehicles--;
-
-  await db.fleet.update({
-    where: {
-      id: fleetId,
-    },
-    data: {
-      totalVehicles: fleet!.totalVehicles,
-    },
+    await tx.fleet.update({
+      where: { id: fleetId },
+      data: {
+        totalVehicles: { decrement: 1 },
+      },
+    });
   });
 }

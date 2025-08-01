@@ -1,15 +1,16 @@
-import { Telemetry, VehicleStatus } from "@prisma/client";
+import { MAX_SPEED, FUEL_THRESHOLD } from "../app";
+import { Telemetry, VehicleStatus, AlertType } from "@prisma/client";
 import db from "../db";
-import { FUEL_THRESHOLD, MAX_SPEED } from "../app";
+
+let queue: number[] = [];
 
 function isWithinLast24Hours(givenDate: Date) {
   const now = Date.now();
-  const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000; // 24 hours * 60 minutes * 60 seconds * 1000 milliseconds
-  const givenDateTimestamp = givenDate.getTime();
-  return givenDateTimestamp >= twentyFourHoursAgo && givenDateTimestamp <= now;
+  const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
+  return (
+    givenDate.getTime() >= twentyFourHoursAgo && givenDate.getTime() <= now
+  );
 }
-
-let queue: number[] = [];
 
 export async function getAll(fleetId: string): Promise<Telemetry[]> {
   return (
@@ -37,72 +38,85 @@ export async function getLatest(fleetId: string): Promise<Telemetry | null> {
 }
 
 export async function insert(fleetId: string, telArray: Telemetry[]) {
-  const fleet = await db.fleet.findFirst({
-    where: { id: fleetId },
+  telArray.forEach((t) => {
+    if (typeof t.timestamp === "string") {
+      t.timestamp = new Date(t.timestamp);
+    }
   });
+  telArray.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-  if (fleet == null) {
-    throw new Error("Fleet not found");
-  }
+  const fleet = await db.fleet.findUnique({ where: { id: fleetId } });
+  if (!fleet) throw new Error("Fleet not found");
 
   const lastUpdates = await db.vehicleStatus.findMany({
     where: { Vehicle: { fleetId } },
   });
+  const map = Object.fromEntries(
+    lastUpdates.map((s) => [s.vehicleId, s] as const),
+  ) as Record<number, VehicleStatus>;
 
-  let map: { [id: number]: VehicleStatus } = {};
-  lastUpdates.forEach((e) => {
-    map[e.vehicleId] = e;
-  });
-
-  console.log(queue);
-  console.log(map);
-  console.log(telArray);
-
-  while (queue.length > 0) {
-    if (isWithinLast24Hours(new Date(map[queue[0]].lastDriven))) break;
-    let last_driver = map[queue.shift()!];
+  while (queue.length) {
+    const vid = queue[0];
+    const status = map[vid];
+    if (isWithinLast24Hours(status.lastDriven)) break;
+    queue.shift();
     fleet.activeVehicles--;
-    fleet.lastDistanceDriven -= last_driver.lastOdometer;
+    fleet.lastDistanceDriven -= status.lastOdometer;
   }
 
-  await telArray.forEach(async (newtel) => {
-    queue.push(newtel.id);
-    let oldtel = map[newtel.vehicleId];
-    fleet.averageFuel += (newtel.fuel - oldtel.lastFuel) / fleet.totalVehicles;
-    if (oldtel.lastFuel < FUEL_THRESHOLD && newtel.fuel >= FUEL_THRESHOLD)
-      fleet.totalFuelWarns--;
-    if (oldtel.lastFuel >= FUEL_THRESHOLD && newtel.fuel < FUEL_THRESHOLD)
-      fleet.totalFuelWarns++;
+  await db.$transaction(async (tx) => {
+    for (const newtel of telArray) {
+      const old = map[newtel.vehicleId];
+      queue.push(newtel.vehicleId);
 
-    if (oldtel.lastSpeed <= MAX_SPEED && newtel.speed > MAX_SPEED)
-      fleet.totalSpeedWarns++;
-    if (oldtel.lastSpeed > MAX_SPEED && newtel.speed <= MAX_SPEED)
-      fleet.totalSpeedWarns--;
+      // 4a) average fuel & distance
+      fleet.averageFuel += (newtel.fuel - old.lastFuel) / fleet.totalVehicles;
+      if (!isWithinLast24Hours(old.lastDriven)) {
+        fleet.activeVehicles++;
+        fleet.lastDistanceDriven += newtel.odometer;
+      } else {
+        fleet.lastDistanceDriven += newtel.odometer - old.lastOdometer;
+      }
 
-    if (!isWithinLast24Hours(oldtel.lastDriven)) {
-      fleet.activeVehicles++;
-      fleet.lastDistanceDriven += newtel.odometer;
-    } else {
-      fleet.lastDistanceDriven += newtel.odometer - oldtel.lastOdometer;
+      if (newtel.speed > MAX_SPEED) {
+        await tx.alert.create({
+          data: {
+            vehicleId: newtel.vehicleId,
+            type: AlertType.SPEED_VIOLATION,
+            timestamp: newtel.timestamp,
+          },
+        });
+      }
+
+      if (newtel.fuel < FUEL_THRESHOLD) {
+        await tx.alert.create({
+          data: {
+            vehicleId: newtel.vehicleId,
+            type: AlertType.FUEL_LOW,
+            timestamp: newtel.timestamp,
+          },
+        });
+      }
+
+      await tx.vehicleStatus.update({
+        where: { vehicleId: newtel.vehicleId },
+        data: {
+          lastDriven: newtel.timestamp,
+          lastFuel: newtel.fuel,
+          lastOdometer: newtel.odometer,
+        },
+      });
     }
 
-    await db.vehicleStatus.update({
-      where: { vehicleId: newtel.vehicleId },
+    await tx.fleet.update({
+      where: { id: fleetId },
       data: {
-        lastDriven: newtel.timestamp,
-        lastFuel: newtel.fuel,
-        lastOdometer: newtel.odometer,
-        lastSpeed: newtel.speed,
+        activeVehicles: fleet.activeVehicles,
+        lastDistanceDriven: fleet.lastDistanceDriven,
+        averageFuel: fleet.averageFuel,
       },
     });
-  });
 
-  await db.fleet.update({
-    where: { id: fleetId },
-    data: fleet,
-  });
-
-  await db.telemetry.createMany({
-    data: telArray,
+    await tx.telemetry.createMany({ data: telArray });
   });
 }

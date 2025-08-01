@@ -1,4 +1,5 @@
 import db from "../db";
+import { AlertType } from "@prisma/client";
 
 export type Analytics = {
   activeDrivers: number;
@@ -12,22 +13,34 @@ export type Analytics = {
 };
 
 export async function getAll(fleetId: string): Promise<Analytics> {
-  let analytics = await db.fleet.findFirst({
+  const fleet = await db.fleet.findUnique({
     where: { id: fleetId },
   });
+  if (!fleet) throw new Error("Fleet not found");
 
-  if (analytics == null) {
-    throw new Error("Analytics not found");
-  }
+  const [lowFuelCount, speedViolationCount] = await Promise.all([
+    db.alert.count({
+      where: {
+        type: AlertType.FUEL_LOW,
+        vehicle: { fleetId },
+      },
+    }),
+    db.alert.count({
+      where: {
+        type: AlertType.SPEED_VIOLATION,
+        vehicle: { fleetId },
+      },
+    }),
+  ]);
 
-  let response: Analytics = {
-    activeDrivers: analytics.activeVehicles,
-    inactiveDrivers: analytics.totalVehicles - analytics.activeVehicles,
-    averageFuel: analytics.averageFuel,
-    totalDistance: analytics.lastDistanceDriven,
+  const response: Analytics = {
+    activeDrivers: fleet.activeVehicles,
+    inactiveDrivers: fleet.totalVehicles - fleet.activeVehicles,
+    averageFuel: fleet.averageFuel,
+    totalDistance: fleet.lastDistanceDriven,
     alertSummary: {
-      lowFuel: analytics.totalFuelWarns,
-      speedViolation: analytics.totalSpeedWarns,
+      lowFuel: lowFuelCount,
+      speedViolation: speedViolationCount,
     },
   };
 

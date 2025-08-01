@@ -20,8 +20,6 @@ model Fleet {
     activeVehicles     Int       @default(0)
     lastDistanceDriven Int       @default(0)
     averageFuel        Int       @default(0)
-    totalFuelWarns     Int       @default(0)
-    totalSpeedWarns    Int       @default(0)
 }
 
 model Vehicle {
@@ -34,6 +32,7 @@ model Vehicle {
     fleetId       String
     VehicleStatus VehicleStatus[]
     Telemetry     Telemetry[]
+    Alert         Alert[]
 }
 
 enum EngineStatus {
@@ -51,7 +50,7 @@ model Telemetry {
     fuel           Int
     odometer       Int
     diagnosticCode Int?
-    timestamp      DateTime     @default(now())
+    timestamp      DateTime
     vehicle        Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
     vehicleId      Int
 }
@@ -59,8 +58,20 @@ model Telemetry {
 model VehicleStatus {
     vehicleId    Int      @unique
     lastOdometer Int
-    lastSpeed    Int
     lastFuel     Int
-    lastDriven   DateTime @default(now())
+    lastDriven   DateTime
     Vehicle      Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+}
+
+enum AlertType {
+    SPEED_VIOLATION
+    FUEL_LOW
+}
+
+model Alert {
+    id        Int       @id @default(autoincrement())
+    vehicle   Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+    type      AlertType
+    vehicleId Int
+    timestamp DateTime
 }
