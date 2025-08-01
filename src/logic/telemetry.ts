@@ -1,7 +1,7 @@
+import { Telemetry } from "@prisma/client";
 import db from "../db";
-import { TelemetryData } from "./types";
 
-export async function getAll(fleetId: number): Promise<TelemetryData[]> {
+export async function getAll(fleetId: string): Promise<Telemetry[]> {
   return await db.telemetry.findMany({
     where: {
       vehicle: {
@@ -11,9 +11,7 @@ export async function getAll(fleetId: number): Promise<TelemetryData[]> {
   });
 }
 
-export async function getLatest(
-  fleetId: number,
-): Promise<TelemetryData | null> {
+export async function getLatest(fleetId: string): Promise<Telemetry | null> {
   return await db.telemetry.findFirst({
     where: {
       vehicle: {
@@ -26,7 +24,7 @@ export async function getLatest(
   });
 }
 
-export async function insert(telArray: TelemetryData[]) {
+export async function insert(telArray: Telemetry[]) {
   await db.telemetry.createMany({
     data: telArray,
   });
