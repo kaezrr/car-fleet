@@ -12,7 +12,7 @@ app.use(express.urlencoded({ extended: false }));
 
 // app.use("/analytics", analyticsRouter);
 app.use("/vehicle", vehicleRouter);
-// app.use("/telemetry", telemetryRouter);
+app.use("/telemetry", telemetryRouter);
 // app.use("/alert", alertRouter);
 
 const PORT = process.env.PORT || 3000;
