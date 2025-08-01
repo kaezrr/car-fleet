@@ -8,11 +8,13 @@ export type Vehicle = {
 };
 
 export type TelemetryData = {
-  coordinates: { lat: number; lon: number };
+  coordsLat: number;
+  coordsLon: number;
   speed: number; // kilometers per hour
-  engineStatus: "ON" | "OFF" | "IDLE";
+  engine: "ON" | "OFF" | "IDLE";
   fuel: number; // Percentage 0 - 100
   odometer: number; // kilometers
   diagnosticCode: number | null;
   timestamp: Date;
+  vehicleId: number;
 };
